@@ -1,0 +1,234 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: nodejs-app-pipeline
+  labels:
+    app: nodejs-app
+    pipeline.type: secure-build
+spec:
+  description: |
+    Secure CI/CD pipeline for Node.js application with:
+    - Source code security scanning
+    - Dependency vulnerability analysis
+    - Multi-stage secure Docker builds
+    - Image vulnerability scanning
+    - SBOM generation
+    - Image signing with Cosign
+  params:
+  - name: git-url
+    type: string
+    description: Git repository URL
+    default: "https://github.com/nguie2/gitops-express-cluster.git"
+  - name: git-revision
+    type: string
+    description: Git revision to checkout
+    default: "main"
+  - name: image-name
+    type: string
+    description: Container image name
+    default: "nodejs-app"
+  - name: image-tag
+    type: string
+    description: Container image tag
+    default: "latest"
+  - name: dockerfile-path
+    type: string
+    description: Path to Dockerfile
+    default: "./Dockerfile"
+  - name: context-path
+    type: string
+    description: Build context path
+    default: "."
+  - name: registry-url
+    type: string
+    description: Container registry URL
+    default: "ghcr.io/nguie2"
+  
+  workspaces:
+  - name: shared-data
+    description: Shared workspace for pipeline data
+  - name: git-credentials
+    description: Git credentials
+  - name: registry-credentials
+    description: Registry credentials
+  - name: cosign-keys
+    description: Cosign signing keys
+
+  tasks:
+  # 1. Clone source code
+  - name: fetch-source
+    taskRef:
+      name: git-clone
+      kind: ClusterTask
+    workspaces:
+    - name: output
+      workspace: shared-data
+    - name: ssh-directory
+      workspace: git-credentials
+    params:
+    - name: url
+      value: $(params.git-url)
+    - name: revision
+      value: $(params.git-revision)
+    - name: deleteExisting
+      value: "true"
+
+  # 2. Source code security scanning
+  - name: source-security-scan
+    taskRef:
+      name: semgrep-scan
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: ARGS
+      value: ["--config=auto", "--severity=ERROR", "--json", "--output=/workspace/source/semgrep-results.json"]
+    runAfter:
+    - fetch-source
+
+  # 3. Dependency vulnerability scanning
+  - name: dependency-scan
+    taskRef:
+      name: npm-audit
+    workspaces:
+    - name: source
+      workspace: shared-data
+    runAfter:
+    - fetch-source
+
+  # 4. Unit tests
+  - name: run-tests
+    taskRef:
+      name: npm-test
+    workspaces:
+    - name: source
+      workspace: shared-data
+    runAfter:
+    - dependency-scan
+
+  # 5. Build secure container image
+  - name: build-image
+    taskRef:
+      name: buildah
+      kind: ClusterTask
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: IMAGE
+      value: "$(params.registry-url)/$(params.image-name):$(params.image-tag)"
+    - name: DOCKERFILE
+      value: $(params.dockerfile-path)
+    - name: CONTEXT
+      value: $(params.context-path)
+    - name: BUILD_EXTRA_ARGS
+      value: "--build-arg=BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg=VCS_REF=$(params.git-revision)"
+    runAfter:
+    - run-tests
+    - source-security-scan
+
+  # 6. Container image vulnerability scanning
+  - name: image-scan
+    taskRef:
+      name: trivy-scanner
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: IMAGE_URL
+      value: "$(params.registry-url)/$(params.image-name):$(params.image-tag)"
+    - name: FORMAT
+      value: "sarif"
+    - name: OUTPUT_FILE
+      value: "/workspace/source/trivy-results.sarif"
+    runAfter:
+    - build-image
+
+  # 7. Generate SBOM
+  - name: generate-sbom
+    taskRef:
+      name: syft-generate-sbom
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: IMAGE_URL
+      value: "$(params.registry-url)/$(params.image-name):$(params.image-tag)"
+    - name: OUTPUT_FORMAT
+      value: "spdx-json"
+    runAfter:
+    - image-scan
+
+  # 8. Sign image with Cosign
+  - name: sign-image
+    taskRef:
+      name: cosign-sign
+    workspaces:
+    - name: source
+      workspace: shared-data
+    - name: cosign-keys
+      workspace: cosign-keys
+    params:
+    - name: IMAGE_URL
+      value: "$(params.registry-url)/$(params.image-name):$(params.image-tag)"
+    runAfter:
+    - generate-sbom
+
+  # 9. Push to registry
+  - name: push-image
+    taskRef:
+      name: buildah
+      kind: ClusterTask
+    workspaces:
+    - name: source
+      workspace: shared-data
+    - name: dockerconfig
+      workspace: registry-credentials
+    params:
+    - name: IMAGE
+      value: "$(params.registry-url)/$(params.image-name):$(params.image-tag)"
+    - name: TLSVERIFY
+      value: "true"
+    runAfter:
+    - sign-image
+
+  # 10. Update GitOps repository
+  - name: update-gitops
+    taskRef:
+      name: git-update-deployment
+    workspaces:
+    - name: source
+      workspace: shared-data
+    - name: git-credentials
+      workspace: git-credentials
+    params:
+    - name: GIT_REPOSITORY
+      value: $(params.git-url)
+    - name: GIT_USERNAME
+      value: "tekton-bot"
+    - name: GIT_EMAIL
+      value: "tekton@example.com"
+    - name: BRANCH_NAME
+      value: "main"
+    - name: FILE_PATH
+      value: "k8s/base/kustomization.yaml"
+    - name: NEW_IMAGE
+      value: "$(params.registry-url)/$(params.image-name):$(params.image-tag)"
+    runAfter:
+    - push-image
+
+  finally:
+  # Security report aggregation
+  - name: security-report
+    taskRef:
+      name: generate-security-report
+    workspaces:
+    - name: source
+      workspace: shared-data
+    params:
+    - name: PIPELINE_NAME
+      value: "nodejs-app-pipeline"
+    - name: GIT_REVISION
+      value: $(params.git-revision)
+    - name: IMAGE_URL
+      value: "$(params.registry-url)/$(params.image-name):$(params.image-tag)" 

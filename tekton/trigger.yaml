@@ -1,0 +1,224 @@
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: nodejs-app-trigger-template
+  labels:
+    app: nodejs-app
+spec:
+  params:
+  - name: git-revision
+    description: The git revision
+  - name: git-commit-message
+    description: The git commit message
+  - name: git-commit-author
+    description: The git commit author
+  - name: git-repo-url
+    description: The git repository url
+  - name: git-repo-name
+    description: The git repository name
+  - name: content-type
+    description: The Content-Type of the event
+  - name: pusher-name
+    description: The name of the pusher
+  
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: nodejs-app-pipeline-run-
+      labels:
+        app: nodejs-app
+        tekton.dev/pipeline: nodejs-app-pipeline
+        git.tekton.dev/revision: $(tt.params.git-revision)
+      annotations:
+        tekton.dev/git-commit: $(tt.params.git-revision)
+        tekton.dev/git-url: $(tt.params.git-repo-url)
+    spec:
+      pipelineRef:
+        name: nodejs-app-pipeline
+      podTemplate:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          fsGroup: 65532
+        nodeSelector:
+          kubernetes.io/arch: amd64
+      params:
+      - name: git-url
+        value: $(tt.params.git-repo-url)
+      - name: git-revision
+        value: $(tt.params.git-revision)
+      - name: image-name
+        value: "nodejs-app"
+      - name: image-tag
+        value: $(tt.params.git-revision)
+      - name: registry-url
+        value: "ghcr.io/nguie2"
+      workspaces:
+      - name: shared-data
+        volumeClaimTemplate:
+          spec:
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 2Gi
+            storageClassName: fast-ssd
+      - name: git-credentials
+        secret:
+          secretName: git-credentials
+      - name: registry-credentials
+        secret:
+          secretName: registry-credentials
+      - name: cosign-keys
+        secret:
+          secretName: cosign-keys
+      timeout: 1h0m0s
+
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: nodejs-app-trigger-binding
+  labels:
+    app: nodejs-app
+spec:
+  params:
+  - name: git-revision
+    value: $(body.head_commit.id)
+  - name: git-commit-message
+    value: $(body.head_commit.message)
+  - name: git-commit-author
+    value: $(body.head_commit.author.name)
+  - name: git-repo-url
+    value: $(body.repository.clone_url)
+  - name: git-repo-name
+    value: $(body.repository.name)
+  - name: content-type
+    value: $(header.Content-Type)
+  - name: pusher-name
+    value: $(body.pusher.name)
+
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: nodejs-app-event-listener
+  labels:
+    app: nodejs-app
+spec:
+  serviceAccountName: tekton-triggers-sa
+  triggers:
+  - name: github-push-main
+    interceptors:
+    - ref:
+        name: "github"
+      params:
+      - name: "secretRef"
+        value:
+          secretName: github-webhook-secret
+          secretKey: webhook-secret
+      - name: "eventTypes"
+        value: ["push"]
+    - ref:
+        name: "cel"
+      params:
+      - name: "filter"
+        value: "body.ref == 'refs/heads/main'"
+    bindings:
+    - ref: nodejs-app-trigger-binding
+    template:
+      ref: nodejs-app-trigger-template
+  - name: github-pull-request
+    interceptors:
+    - ref:
+        name: "github"
+      params:
+      - name: "secretRef"
+        value:
+          secretName: github-webhook-secret
+          secretKey: webhook-secret
+      - name: "eventTypes"
+        value: ["pull_request"]
+    - ref:
+        name: "cel"
+      params:
+      - name: "filter"
+        value: "body.action in ['opened', 'synchronize', 'reopened']"
+    bindings:
+    - ref: nodejs-app-trigger-binding
+    template:
+      ref: nodejs-app-trigger-template
+  resources:
+    kubernetesResource:
+      spec:
+        template:
+          spec:
+            serviceAccountName: tekton-triggers-sa
+            containers:
+            - name: tekton-triggers-eventlistener
+              resources:
+                requests:
+                  memory: "64Mi"
+                  cpu: "50m"
+                limits:
+                  memory: "128Mi"
+                  cpu: "100m"
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+                runAsNonRoot: true
+                runAsUser: 65532
+                seccompProfile:
+                  type: RuntimeDefault
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodejs-app-event-listener-service
+  labels:
+    app: nodejs-app
+    component: event-listener
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    eventlistener: nodejs-app-event-listener
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nodejs-app-webhook-ingress
+  labels:
+    app: nodejs-app
+    component: webhook
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+spec:
+  tls:
+  - hosts:
+    - webhook.nodejs-app.example.com
+    secretName: webhook-tls
+  rules:
+  - host: webhook.nodejs-app.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nodejs-app-event-listener-service
+            port:
+              number: 8080 

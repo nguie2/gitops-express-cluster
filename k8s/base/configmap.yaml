@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config-files
+  labels:
+    app: nodejs-app
+data:
+  app.json: |
+    {
+      "server": {
+        "port": 3000,
+        "host": "0.0.0.0"
+      },
+      "redis": {
+        "maxRetries": 3,
+        "retryDelayOnFailover": 100,
+        "enableReadyCheck": true
+      },
+      "logging": {
+        "format": "json",
+        "timestamp": true,
+        "colorize": false
+      },
+      "metrics": {
+        "enabled": true,
+        "path": "/metrics",
+        "collectDefaultMetrics": true
+      },
+      "health": {
+        "checks": {
+          "database": true,
+          "redis": true,
+          "external_services": true
+        }
+      }
+    }
+  nginx.conf: |
+    upstream nodejs_backend {
+        server nodejs-app-service:80 max_fails=3 fail_timeout=30s;
+    }
+    
+    server {
+        listen 80;
+        location / {
+            proxy_pass http://nodejs_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    } 

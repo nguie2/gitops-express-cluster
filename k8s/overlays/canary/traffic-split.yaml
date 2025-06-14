@@ -1,0 +1,99 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: nodejs-app-traffic-split
+  labels:
+    app: nodejs-app
+spec:
+  hosts:
+  - nodejs-app.example.com
+  gateways:
+  - nodejs-app-gateway
+  http:
+  - match:
+    - headers:
+        canary:
+          exact: "true"
+    route:
+    - destination:
+        host: nodejs-app-canary-service
+        port:
+          number: 80
+      weight: 100
+  - route:
+    - destination:
+        host: nodejs-app-service
+        port:
+          number: 80
+      weight: 90
+    - destination:
+        host: nodejs-app-canary-service
+        port:
+          number: 80
+      weight: 10
+    fault:
+      abort:
+        percentage:
+          value: 0.1
+        httpStatus: 500
+    timeout: 30s
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: nodejs-app-gateway
+  labels:
+    app: nodejs-app
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - nodejs-app.example.com
+    tls:
+      httpsRedirect: true
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: nodejs-app-tls
+    hosts:
+    - nodejs-app.example.com
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: nodejs-app-destination-rule
+  labels:
+    app: nodejs-app
+spec:
+  host: nodejs-app-service
+  subsets:
+  - name: stable
+    labels:
+      version: stable
+  - name: canary
+    labels:
+      version: canary
+  trafficPolicy:
+    loadBalancer:
+      simple: LEAST_CONN
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 50
+        maxRequestsPerConnection: 10
+    outlierDetection:
+      consecutiveErrors: 3
+      interval: 30s
+      baseEjectionTime: 30s 

@@ -1,0 +1,329 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: nodejs-app-alerts
+  labels:
+    app: nodejs-app
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  - name: nodejs-app.rules
+    interval: 30s
+    rules:
+    
+    # High Error Rate Alert (>1%)
+    - alert: NodeJSHighErrorRate
+      expr: |
+        (
+          rate(http_requests_total{app="nodejs-app", status=~"5.."}[5m]) /
+          rate(http_requests_total{app="nodejs-app"}[5m])
+        ) * 100 > 1
+      for: 2m
+      labels:
+        severity: critical
+        service: nodejs-app
+        team: backend
+      annotations:
+        summary: "High error rate detected in Node.js application"
+        description: |
+          The error rate for {{ $labels.app }} in namespace {{ $labels.namespace }}
+          has been above 1% for more than 2 minutes.
+          Current error rate: {{ $value | humanizePercentage }}
+        runbook_url: "https://runbooks.example.com/nodejs-app/high-error-rate"
+        dashboard_url: "https://grafana.example.com/d/nodejs-app/nodejs-application-dashboard"
+    
+    # High Response Time
+    - alert: NodeJSHighResponseTime
+      expr: |
+        histogram_quantile(0.95,
+          rate(http_request_duration_seconds_bucket{app="nodejs-app"}[5m])
+        ) > 1
+      for: 5m
+      labels:
+        severity: warning
+        service: nodejs-app
+        team: backend
+      annotations:
+        summary: "High response time detected in Node.js application"
+        description: |
+          95th percentile response time for {{ $labels.app }} in namespace {{ $labels.namespace }}
+          has been above 1 second for more than 5 minutes.
+          Current P95 response time: {{ $value }}s
+        runbook_url: "https://runbooks.example.com/nodejs-app/high-response-time"
+    
+    # High Memory Usage
+    - alert: NodeJSHighMemoryUsage
+      expr: |
+        (
+          container_memory_working_set_bytes{container="nodejs-app", pod=~"nodejs-app.*"} /
+          container_spec_memory_limit_bytes{container="nodejs-app", pod=~"nodejs-app.*"}
+        ) * 100 > 80
+      for: 10m
+      labels:
+        severity: warning
+        service: nodejs-app
+        team: backend
+      annotations:
+        summary: "High memory usage detected in Node.js application"
+        description: |
+          Memory usage for {{ $labels.pod }} in namespace {{ $labels.namespace }}
+          has been above 80% for more than 10 minutes.
+          Current memory usage: {{ $value | humanizePercentage }}
+        runbook_url: "https://runbooks.example.com/nodejs-app/high-memory-usage"
+    
+    # High CPU Usage
+    - alert: NodeJSHighCPUUsage
+      expr: |
+        (
+          rate(container_cpu_usage_seconds_total{container="nodejs-app", pod=~"nodejs-app.*"}[5m]) /
+          container_spec_cpu_quota{container="nodejs-app", pod=~"nodejs-app.*"} * 
+          container_spec_cpu_period{container="nodejs-app", pod=~"nodejs-app.*"}
+        ) * 100 > 80
+      for: 10m
+      labels:
+        severity: warning
+        service: nodejs-app
+        team: backend
+      annotations:
+        summary: "High CPU usage detected in Node.js application"
+        description: |
+          CPU usage for {{ $labels.pod }} in namespace {{ $labels.namespace }}
+          has been above 80% for more than 10 minutes.
+          Current CPU usage: {{ $value | humanizePercentage }}
+        runbook_url: "https://runbooks.example.com/nodejs-app/high-cpu-usage"
+    
+    # Redis Queue Length (Custom HPA Metric)
+    - alert: NodeJSRedisQueueLengthHigh
+      expr: redis_queue_length{queue_name="job_queue", redis_instance="main"} > 50
+      for: 5m
+      labels:
+        severity: warning
+        service: nodejs-app
+        team: backend
+      annotations:
+        summary: "Redis queue length is high"
+        description: |
+          Redis queue length for {{ $labels.queue_name }} has been above 50 for more than 5 minutes.
+          Current queue length: {{ $value }}
+          This may trigger horizontal pod autoscaling.
+        runbook_url: "https://runbooks.example.com/nodejs-app/redis-queue-high"
+    
+    # Pod Restart Rate
+    - alert: NodeJSHighPodRestartRate
+      expr: |
+        rate(kube_pod_container_status_restarts_total{container="nodejs-app", pod=~"nodejs-app.*"}[15m]) * 60 * 15 > 5
+      for: 5m
+      labels:
+        severity: critical
+        service: nodejs-app
+        team: backend
+      annotations:
+        summary: "High pod restart rate detected"
+        description: |
+          Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has restarted
+          {{ $value }} times in the last 15 minutes.
+        runbook_url: "https://runbooks.example.com/nodejs-app/high-restart-rate"
+    
+    # Database Connection Issues
+    - alert: NodeJSDatabaseConnectionErrors
+      expr: |
+        rate(database_connection_errors_total{app="nodejs-app"}[5m]) > 0.1
+      for: 2m
+      labels:
+        severity: critical
+        service: nodejs-app
+        team: backend
+      annotations:
+        summary: "Database connection errors detected"
+        description: |
+          Database connection errors for {{ $labels.app }} in namespace {{ $labels.namespace }}
+          are occurring at a rate of {{ $value }} errors per second.
+        runbook_url: "https://runbooks.example.com/nodejs-app/database-connection-errors"
+    
+    # Canary Deployment Health
+    - alert: NodeJSCanaryDeploymentUnhealthy
+      expr: |
+        (
+          rate(http_requests_total{app="nodejs-app", version="canary", status=~"5.."}[5m]) /
+          rate(http_requests_total{app="nodejs-app", version="canary"}[5m])
+        ) * 100 > 5
+      for: 1m
+      labels:
+        severity: critical
+        service: nodejs-app
+        team: backend
+        deployment_type: canary
+      annotations:
+        summary: "Canary deployment showing high error rate"
+        description: |
+          Canary deployment of {{ $labels.app }} has an error rate of {{ $value | humanizePercentage }},
+          which is above the 5% threshold. Consider rolling back the deployment.
+        runbook_url: "https://runbooks.example.com/nodejs-app/canary-rollback"
+    
+    # HPA Scaling Events
+    - alert: NodeJSHPAMaxReplicasReached
+      expr: |
+        kube_horizontalpodautoscaler_status_current_replicas{horizontalpodautoscaler="nodejs-app-hpa"} >=
+        kube_horizontalpodautoscaler_spec_max_replicas{horizontalpodautoscaler="nodejs-app-hpa"}
+      for: 5m
+      labels:
+        severity: warning
+        service: nodejs-app
+        team: backend
+      annotations:
+        summary: "HPA has reached maximum replicas"
+        description: |
+          The Horizontal Pod Autoscaler for {{ $labels.horizontalpodautoscaler }}
+          has reached its maximum replica count of {{ $value }}.
+          Consider reviewing the scaling policy or increasing the max replicas.
+        runbook_url: "https://runbooks.example.com/nodejs-app/hpa-max-replicas"
+    
+    # Loki Log Ingestion Issues
+    - alert: LokiLogIngestionDown
+      expr: up{job="loki"} == 0
+      for: 2m
+      labels:
+        severity: critical
+        service: logging
+        team: platform
+      annotations:
+        summary: "Loki log ingestion is down"
+        description: |
+          Loki instance {{ $labels.instance }} has been down for more than 2 minutes.
+          Application logs may not be getting collected.
+        runbook_url: "https://runbooks.example.com/loki/ingestion-down"
+    
+    # SSL Certificate Expiry
+    - alert: NodeJSSSLCertificateExpiringSoon
+      expr: |
+        probe_ssl_earliest_cert_expiry{instance="https://nodejs-app.example.com"} - time() < 86400 * 7
+      for: 1h
+      labels:
+        severity: warning
+        service: nodejs-app
+        team: platform
+      annotations:
+        summary: "SSL certificate expiring soon"
+        description: |
+          SSL certificate for {{ $labels.instance }} will expire in less than 7 days.
+          Current expiry: {{ $value | humanizeTimestamp }}
+        runbook_url: "https://runbooks.example.com/ssl/certificate-renewal"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  labels:
+    app: alertmanager
+data:
+  alertmanager.yml: |
+    global:
+      smtp_smarthost: 'localhost:587'
+      smtp_from: 'alerts@nodejs-app.example.com'
+      smtp_auth_username: 'alerts@nodejs-app.example.com'
+      smtp_auth_password: 'your-smtp-password'
+    
+    # Template for alert notifications
+    templates:
+    - '/etc/alertmanager/templates/*.tmpl'
+    
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 1h
+      receiver: 'web.hook'
+      routes:
+      - match:
+          severity: critical
+        receiver: 'critical-alerts'
+        group_wait: 5s
+        repeat_interval: 30m
+      - match:
+          service: nodejs-app
+        receiver: 'nodejs-app-team'
+        group_wait: 10s
+        repeat_interval: 1h
+      - match:
+          deployment_type: canary
+        receiver: 'canary-alerts'
+        group_wait: 5s
+        repeat_interval: 15m
+    
+    receivers:
+    - name: 'web.hook'
+      webhook_configs:
+      - url: 'http://webhook-service:5000/alerts'
+        send_resolved: true
+        http_config:
+          bearer_token: 'your-webhook-token'
+    
+    - name: 'critical-alerts'
+      email_configs:
+      - to: 'critical-alerts@nodejs-app.example.com'
+        subject: '🚨 CRITICAL: {{ .GroupLabels.alertname }} in {{ .GroupLabels.service }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Runbook: {{ .Annotations.runbook_url }}
+          Dashboard: {{ .Annotations.dashboard_url }}
+          {{ end }}
+      slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#critical-alerts'
+        title: '🚨 Critical Alert'
+        text: |
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          <{{ .Annotations.runbook_url }}|Runbook> | <{{ .Annotations.dashboard_url }}|Dashboard>
+          {{ end }}
+    
+    - name: 'nodejs-app-team'
+      email_configs:
+      - to: 'nodejs-team@nodejs-app.example.com'
+        subject: '⚠️ Alert: {{ .GroupLabels.alertname }} in {{ .GroupLabels.service }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Runbook: {{ .Annotations.runbook_url }}
+          {{ end }}
+      slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#nodejs-app-alerts'
+        title: 'Node.js App Alert'
+        text: |
+          {{ range .Alerts }}
+          {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+    
+    - name: 'canary-alerts'
+      email_configs:
+      - to: 'devops@nodejs-app.example.com'
+        subject: '🐤 Canary Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Canary Deployment Alert: {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+      slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#deployments'
+        title: '🐤 Canary Alert'
+        text: |
+          {{ range .Alerts }}
+          *Canary Issue:* {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+    
+    inhibit_rules:
+    - source_match:
+        severity: 'critical'
+      target_match:
+        severity: 'warning'
+      equal: ['alertname', 'service', 'instance'] 

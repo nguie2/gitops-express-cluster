@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nodejs-app-ingress
+  annotations:
+    # Canary deployment annotations
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "10"
+    nginx.ingress.kubernetes.io/canary-by-header: "canary"
+    nginx.ingress.kubernetes.io/canary-by-header-value: "true"
+    nginx.ingress.kubernetes.io/canary-by-cookie: "canary"
+    # Additional monitoring for canary
+    nginx.ingress.kubernetes.io/server-snippet: |
+      location /canary-status {
+        access_log off;
+        return 200 "Canary: 10% traffic\n";
+        add_header Content-Type text/plain;
+      }
+spec:
+  rules:
+  - host: nodejs-app.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nodejs-app-canary-service
+            port:
+              number: 80 
