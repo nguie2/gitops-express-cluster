@@ -1,0 +1,161 @@
+name: 🚀 Feature Request
+description: Suggest an idea for this project
+title: "[FEATURE]: "
+labels: ["enhancement", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! 💡
+        
+        Before submitting, please search existing issues to avoid duplicates.
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Prerequisites
+      description: Please confirm the following before submitting
+      options:
+        - label: I have searched existing issues and this is not a duplicate
+          required: true
+        - label: I have read the contributing guidelines
+          required: true
+        - label: This feature request is related to the GitOps Express Cluster project
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: Is your feature request related to a problem? Please describe the problem you're trying to solve
+      placeholder: I'm always frustrated when...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like to see implemented
+      placeholder: A clear and concise description of what you want to happen...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe any alternative solutions or features you've considered
+      placeholder: What other approaches have you thought about?
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use Case
+      description: Describe the specific use case or scenario where this feature would be valuable
+      placeholder: |
+        - Who would use this feature?
+        - When would they use it?
+        - How would it improve their workflow?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      description: Which area does this feature request relate to?
+      options:
+        - ArgoCD Integration
+        - Tekton Pipelines
+        - Kubernetes Manifests
+        - Monitoring & Observability
+        - Security & RBAC
+        - Canary Deployments
+        - Autoscaling & HPA
+        - Multi-cloud Support
+        - Developer Experience
+        - Documentation
+        - CI/CD Workflow
+        - Performance Optimization
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Low - Nice to have
+        - Medium - Would improve workflow
+        - High - Important for adoption
+        - Critical - Blocking current usage
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation Ideas
+      description: Do you have any ideas on how this could be implemented?
+      placeholder: |
+        - Technical approach
+        - Potential challenges
+        - Required dependencies
+        - Breaking changes (if any)
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples or References
+      description: Are there any examples, mockups, or references that illustrate this feature?
+      placeholder: |
+        - Links to similar implementations
+        - Code examples
+        - Screenshots or mockups
+        - Documentation references
+
+  - type: checkboxes
+    id: complexity
+    attributes:
+      label: Estimated Complexity
+      description: What do you think is the complexity of this feature?
+      options:
+        - label: Low - Minor configuration or documentation changes
+        - label: Medium - New component or significant configuration
+        - label: High - Major architectural changes or new integrations
+        - label: Very High - Fundamental changes to core functionality
+
+  - type: checkboxes
+    id: compatibility
+    attributes:
+      label: Compatibility Considerations
+      description: Please check any compatibility concerns
+      options:
+        - label: This feature might introduce breaking changes
+        - label: This feature requires new dependencies
+        - label: This feature affects multiple cloud providers
+        - label: This feature requires documentation updates
+        - label: This feature needs testing across environments
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context, screenshots, or examples about the feature request
+      placeholder: Any additional information that might help...
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution Interest
+      description: Would you be interested in contributing to this feature?
+      options:
+        - label: I would like to work on this feature
+        - label: I can help with testing and feedback
+        - label: I can help with documentation
+        - label: I can provide requirements and use cases 

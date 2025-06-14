@@ -1123,14 +1123,30 @@ if (redis_queue_length > 10) {
 
 ## 🤝 Contributing
 
-I welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions from the DevOps community! Please see our [Contributing Guide](CONTRIBUTING.md) for comprehensive details on:
+
+- Setting up the development environment with automated scripts
+- Submitting pull requests using our structured templates
+- Code standards and testing requirements
+- Issue reporting guidelines with GitHub templates
+- Development workflows and best practices
+
+### Quick Start for Contributors
+
+1. **Read the Guidelines**: Check out [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+2. **Set Up Development Environment**: Run `./scripts/setup-dev.sh` for automated local setup
+3. **Quality Checks**: Use `./scripts/lint.sh` to run all code quality checks
+4. **Submit Issues**: Use our GitHub issue templates for bugs, features, or questions
+5. **Create Pull Requests**: Follow our PR template for structured submissions
 
 ### Development Workflow
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests and documentation
-5. Submit a pull request
+1. Fork the repository and clone your fork
+2. Run `./scripts/setup-dev.sh` to set up local environment
+3. Create a feature branch with conventional naming
+4. Make your changes following our coding standards
+5. Run `./scripts/lint.sh` for quality checks
+6. Add tests and update documentation
+7. Submit a pull request using our template
 
 ## 💡 Future Enhancements
 

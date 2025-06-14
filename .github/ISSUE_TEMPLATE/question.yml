@@ -1,0 +1,126 @@
+name: ❓ Question / Support
+description: Ask a question about the project
+title: "[QUESTION]: "
+labels: ["question", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your question! 🤔
+        
+        Before submitting, please:
+        - Search existing issues and discussions
+        - Check the documentation and README
+        - Review the troubleshooting guide
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Prerequisites
+      description: Please confirm the following before submitting
+      options:
+        - label: I have searched existing issues and discussions
+          required: true
+        - label: I have read the documentation and README
+          required: true
+        - label: I have checked the troubleshooting guide
+          required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Question Category
+      description: What type of question is this?
+      options:
+        - Setup & Installation
+        - Configuration & Customization
+        - Deployment & Operations
+        - Troubleshooting & Debugging
+        - Best Practices
+        - Architecture & Design
+        - Cloud Provider Specific
+        - Security & RBAC
+        - Monitoring & Observability
+        - Performance & Optimization
+        - Integration & Compatibility
+        - General Usage
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know?
+      placeholder: Please be as specific as possible...
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context & Background
+      description: Provide any relevant context about your setup, use case, or what you're trying to achieve
+      placeholder: |
+        - What are you trying to accomplish?
+        - What's your current setup?
+        - What have you tried so far?
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: If relevant, provide details about your environment
+      placeholder: |
+        - OS: [e.g. Ubuntu 22.04, macOS 13.0]
+        - Kubernetes Version: [e.g. 1.27.0]
+        - Cloud Provider: [e.g. AWS EKS, GKE, AKS, local]
+        - ArgoCD Version: [e.g. 2.8.0]
+        - Tekton Version: [e.g. 0.50.0]
+
+  - type: textarea
+    id: attempted
+    attributes:
+      label: What Have You Tried?
+      description: What steps have you already taken to solve this?
+      placeholder: |
+        - Documentation sections reviewed
+        - Commands executed
+        - Configuration changes attempted
+        - Error messages encountered
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Outcome
+      description: What would you expect to happen or what result are you looking for?
+      placeholder: What should the ideal solution look like?
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any other information that might be helpful
+      placeholder: |
+        - Logs or error messages
+        - Configuration files
+        - Screenshots
+        - Links to related resources
+
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: Urgency
+      description: How urgent is this question for you?
+      options:
+        - Low - Learning or exploring
+        - Medium - Working on implementation
+        - High - Blocked on current task
+        - Critical - Production issue
+    validations:
+      required: true 
